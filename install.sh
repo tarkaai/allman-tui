@@ -25,10 +25,13 @@ PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR="$PREFIX/bin"
 
 # Optional bearer auth — needed while the repo is private; harmless once public.
-auth_args=()
-if [ -n "${GH_TOKEN:-}" ]; then
-  auth_args=(-H "Authorization: Bearer $GH_TOKEN")
-fi
+curl_with_auth() {
+  if [ -n "${GH_TOKEN:-}" ]; then
+    curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "$@"
+  else
+    curl -fsSL "$@"
+  fi
+}
 
 case "$(uname -s)" in
   Linux)  os="linux"  ;;
@@ -58,7 +61,7 @@ fi
 
 if [ "$VERSION" = "latest" ]; then
   release_url="https://api.github.com/repos/$REPO/releases?per_page=1"
-  release_json="$(curl -fsSL "${auth_args[@]}" "$release_url")"
+  release_json="$(curl_with_auth "$release_url")"
   release_json="$(echo "$release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d[0]) if d else "")')"
   if [ -z "$release_json" ]; then
     echo "could not resolve latest release for $REPO" >&2
@@ -67,7 +70,7 @@ if [ "$VERSION" = "latest" ]; then
   VERSION="$(echo "$release_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["tag_name"])')"
   echo "resolved latest release: $VERSION"
 else
-  release_json="$(curl -fsSL "${auth_args[@]}" "https://api.github.com/repos/$REPO/releases/tags/$VERSION")"
+  release_json="$(curl_with_auth "https://api.github.com/repos/$REPO/releases/tags/$VERSION")"
 fi
 
 resolve_asset_id() {
@@ -88,11 +91,11 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 echo "downloading $asset from $VERSION..."
-curl -fsSL "${auth_args[@]}" -H "Accept: application/octet-stream" \
+curl_with_auth -H "Accept: application/octet-stream" \
   -o "$tmp/allman-tui" \
   "https://api.github.com/repos/$REPO/releases/assets/$bin_id"
 if [ -n "$sha_id" ]; then
-  curl -fsSL "${auth_args[@]}" -H "Accept: application/octet-stream" \
+  curl_with_auth -H "Accept: application/octet-stream" \
     -o "$tmp/allman-tui.sha256" \
     "https://api.github.com/repos/$REPO/releases/assets/$sha_id"
 fi

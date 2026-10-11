@@ -1,6 +1,6 @@
 {
   "name": "allman-tui",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Terminal UI for the allman LinkedIn messenger \u2014 re-imagined inbox",
   "type": "module",
   "bin": {

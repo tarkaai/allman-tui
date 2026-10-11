@@ -4,14 +4,17 @@
 // tag → push → `gh release create` with assets.
 //
 // Usage:
-//   bun run release 2026-04-20.1-alpha
-//   bun run release 2026-04-20.1-alpha --cli-version 2026-04-20.1-alpha
-//   bun run release 2026-04-20.1-alpha --skip-tests
-//   bun run release 2026-04-20.1-alpha --dry-run
+//   bun run release v0.3.0
+//   bun run release v0.3.0 --cli-version v0.4.0
+//   bun run release v0.4.0-alpha.1 --cli-version v0.5.0-alpha.1
+//   bun run release v0.3.0 --skip-tests
+//   bun run release v0.3.0 --dry-run
 //
-// If --cli-version is omitted, the most recent allman-cli release (including
-// prereleases) is embedded. Tags containing `-alpha` or `-beta` publish as a
-// GitHub prerelease.
+// Tags are `v<major>.<minor>.<patch>` and must match the `version` in
+// package.json. If --cli-version is omitted, the latest *stable* allman-cli
+// release is embedded (pass --cli-version to embed a prerelease). A tag with a
+// `-alpha` / `-beta` suffix publishes as a GitHub prerelease; anything else is
+// a stable release.
 
 import { $ } from "bun";
 import { createHash } from "node:crypto";
@@ -31,7 +34,7 @@ const ENTRY = join(ROOT, "src", "index.tsx");
 const REPO = "tarkaai/allman-tui";
 const CLI_REPO = "tarkaai/allman-cli";
 const BIN = "allman-tui";
-const TAG_REGEX = /^20\d{2}-\d{2}-\d{2}\.\d+(?:-(?:alpha|beta))?$/;
+const TAG_REGEX = /^v(\d+\.\d+\.\d+)(?:-(?:alpha|beta)(?:\.\d+)?)?$/;
 const TARGETS = [
   { os: "linux", arch: "x64", bunTarget: "bun-linux-x64" },
   { os: "linux", arch: "arm64", bunTarget: "bun-linux-arm64" },
@@ -69,8 +72,16 @@ if (!tag)
   die(
     "usage: bun run release <tag> [--cli-version <tag>] [--skip-tests] [--dry-run]"
   );
-if (!TAG_REGEX.test(tag))
-  die(`tag ${tag} does not match YYYY-MM-DD.N[-alpha|-beta]`);
+const tagMatch = TAG_REGEX.exec(tag);
+if (!tagMatch)
+  die(`tag ${tag} does not match v<major>.<minor>.<patch>[-alpha.N|-beta.N]`);
+const tagVersion = tagMatch[1];
+
+const pkgVersion: string = JSON.parse(
+  readFileSync(join(ROOT, "package.json"), "utf8")
+).version;
+if (tagVersion !== pkgVersion)
+  die(`tag ${tag} does not match package.json version ${pkgVersion} — bump package.json first`);
 
 const isPrerelease = tag.includes("-alpha") || tag.includes("-beta");
 
@@ -107,11 +118,14 @@ async function assertTagAvailable() {
 
 async function resolveCliVersion(): Promise<string> {
   if (cliVersionArg) return cliVersionArg;
+  // /releases/latest is the newest non-prerelease, non-draft release.
   const latest = await sh(
-    `gh api repos/${CLI_REPO}/releases --jq '.[0].tag_name'`
+    `gh api repos/${CLI_REPO}/releases/latest --jq .tag_name 2>/dev/null || true`
   );
   if (!latest || latest === "null")
-    die(`no releases found on ${CLI_REPO} — release the CLI first`);
+    die(
+      `no stable release found on ${CLI_REPO} — release the CLI first, or pass --cli-version`
+    );
   return latest;
 }
 

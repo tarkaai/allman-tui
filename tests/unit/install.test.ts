@@ -52,9 +52,9 @@ if [ "$REQUIRE_AUTH" = "1" ] && [ "$auth" != "Authorization: Bearer test-token" 
   exit 42
 fi
 case "$url" in
-  'https://api.github.com/repos/tarkaai/allman-tui/releases?per_page=1')
+  'https://api.github.com/repos/tarkaai/allman-tui/releases/latest')
     [ -z "$out" ] || exit 43
-    printf '%s\\n' '[{"tag_name":"test-release","assets":[{"name":"${asset}","id":1}]}]'
+    printf '%s\\n' '{"tag_name":"test-release","assets":[{"name":"${asset}","id":1}]}'
     ;;
   'https://api.github.com/repos/tarkaai/allman-tui/releases/assets/1')
     [ "$accept" = "Accept: application/octet-stream" ] || exit 44

@@ -78,6 +78,8 @@ export type Message = {
   reactions: Reaction[];
   attachments: Attachment[];
   originToken: string | null;
+  /** LinkedIn's render hint (DEFAULT, SYSTEM, RECALLED…); absent on older records. */
+  renderFormat?: string | null;
 };
 
 export type Auth = {

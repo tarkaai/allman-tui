@@ -142,6 +142,14 @@ export function loadConversations(accountDir: string): Conversation[] {
   return convs;
 }
 
+/** `urn:li:fs_event:(conv,2-MSG)` / `urn:li:messagingMessage:2-MSG` → `2-MSG`. */
+function bareMessageId(urn: string): string {
+  const comma = urn.lastIndexOf(",");
+  if (comma >= 0) return urn.slice(comma + 1).replace(/\)$/, "");
+  const colon = urn.lastIndexOf(":");
+  return colon >= 0 ? urn.slice(colon + 1) : urn;
+}
+
 export function loadLastMessage(accountDir: string, convId: string): Message | null {
   const msgs = loadMessages(accountDir, convId, 1);
   return msgs.length ? (msgs[msgs.length - 1] ?? null) : null;
@@ -154,20 +162,26 @@ export function loadMessages(accountDir: string, convId: string, tailN?: number)
     .filter((f: string) => f.endsWith(".jsonl"))
     .sort(); // chronological by YYYY-MM
 
-  const out: Message[] = [];
+  const parsed: Message[] = [];
   for (const f of files) {
     const lines = readFileSync(join(msgDir, f), "utf8").split("\n");
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
       try {
-        out.push(JSON.parse(trimmed) as Message);
+        parsed.push(JSON.parse(trimmed) as Message);
       } catch {
         // skip
       }
     }
   }
-  out.sort((a, b) => a.timestamp - b.timestamp);
+  parsed.sort((a, b) => a.timestamp - b.timestamp);
+  // The sync rewrites a deleted message as RECALLED with an empty body; the
+  // last line for an id wins, and a recalled one is dropped rather than shown
+  // as a blank row.
+  const byId = new Map<string, Message>();
+  for (const m of parsed) byId.set(bareMessageId(m.urn), m);
+  const out = [...byId.values()].filter((m) => m.renderFormat !== "RECALLED");
   if (tailN && out.length > tailN) return out.slice(out.length - tailN);
   return out;
 }

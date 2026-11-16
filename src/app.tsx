@@ -465,7 +465,7 @@ export function App({ account }: Props) {
     if (!conv) return;
     if (conv.convId.startsWith("pending:")) return; // placeholder, not in store yet
     if (conv.syncState?.fullyBackfilled) return;
-    const target = conv.slug ?? conv.convId;
+    const target = conv.convId;
     const key = `${account.slug}:${target}`;
     if (backfilledRef.current.has(key)) return;
     if (backfillingRef.current.has(key)) return;
@@ -480,7 +480,10 @@ export function App({ account }: Props) {
         showToast("no conversation selected");
         return;
       }
-      const target = conv.slug || conv.backendUrn || conv.convId;
+      // The thread itself, not the contact's slug: a slug is an alias the CLI
+      // resolves on its own, and a wrong one lands in another conversation.
+      // Only a not-yet-stored thread (no URN) is addressed by slug.
+      const target = conv.backendUrn || conv.slug || conv.convId;
       setSending(true);
       try {
         await sendMessage(target, body, { account: account.slug });
@@ -515,7 +518,10 @@ export function App({ account }: Props) {
         showToast("no message selected");
         return;
       }
-      const target = conv.slug || conv.backendUrn || conv.convId;
+      // The thread itself, not the contact's slug: a slug is an alias the CLI
+      // resolves on its own, and a wrong one lands in another conversation.
+      // Only a not-yet-stored thread (no URN) is addressed by slug.
+      const target = conv.backendUrn || conv.slug || conv.convId;
       setReacting(true);
       try {
         await reactToMessage(target, emoji, {
@@ -881,7 +887,9 @@ export function App({ account }: Props) {
       if (cmd === "backfill") {
         if (selectedConvId) {
           const conv = conversations.find((c) => c.convId === selectedConvId);
-          const target = conv?.slug ?? selectedConvId;
+          const target = selectedConvId.startsWith("pending:")
+            ? (conv?.slug ?? selectedConvId)
+            : selectedConvId;
           void doSyncOne(target);
         } else {
           showToast("no conversation selected");
